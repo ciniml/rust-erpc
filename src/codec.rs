@@ -1,10 +1,9 @@
-
 use num_traits::FromPrimitive;
 
 use core::iter::Iterator;
 
-use crate::request::MessageType;
 use crate::cursor::*;
+use crate::request::MessageType;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CodecError {
@@ -28,14 +27,15 @@ impl From<core::str::Utf8Error> for CodecError {
 
 #[derive(Copy, Clone)]
 pub struct MessageHeader {
-    message_type: crate::request::MessageType,
-    service: u32,
-    request: u32,
-    sequence: u32,
+    pub message_type: crate::request::MessageType,
+    pub service: u32,
+    pub request: u32,
+    pub sequence: u32,
 }
 
 pub trait Codec<CursorType: Cursor> {
-    fn new(cursor: &CursorType) -> Self;
+    fn detach(self) -> CursorType;
+
     fn start_write_message(&mut self, message_header: &MessageHeader) -> Result<(), CodecError>;
     fn write_bool(&mut self, value: bool) -> Result<(), CodecError>;
     fn write_i8(&mut self, value: i8) -> Result<(), CodecError>;
@@ -54,7 +54,11 @@ pub trait Codec<CursorType: Cursor> {
     fn start_write_list(&mut self, length: usize) -> Result<(), CodecError>;
     fn start_write_union(&mut self, discriminator: i32) -> Result<(), CodecError>;
     fn write_null_flag(&mut self, is_null: bool) -> Result<(), CodecError>;
-    fn write_callback(&mut self, callback_ids: &[usize], callback_id: usize) -> Result<(), CodecError>;
+    fn write_callback(
+        &mut self,
+        callback_ids: &[usize],
+        callback_id: usize,
+    ) -> Result<(), CodecError>;
 
     fn start_read_message(&mut self) -> Result<MessageHeader, CodecError>;
     fn read_bool(&mut self) -> Result<bool, CodecError>;
@@ -71,29 +75,34 @@ pub trait Codec<CursorType: Cursor> {
     fn read_ptr(&mut self) -> Result<usize, CodecError>;
 
     fn read_str<'buffer>(&mut self, buffer: &'buffer mut [u8]) -> Result<&'buffer str, CodecError>;
-    fn read_binary<'buffer>(&mut self, buffer: &'buffer mut [u8]) -> Result<&'buffer [u8], CodecError>;
+    fn read_binary<'buffer>(
+        &mut self,
+        buffer: &'buffer mut [u8],
+    ) -> Result<&'buffer [u8], CodecError>;
 
     fn start_read_list(&mut self) -> Result<usize, CodecError>;
     fn start_read_union(&mut self) -> Result<i32, CodecError>;
     fn read_null_flag(&mut self) -> Result<bool, CodecError>;
     fn read_callback(&mut self, callback_ids: &[usize]) -> Result<usize, CodecError>;
 }
-
-pub struct BasicCodec<'cursor, CursorType: Cursor>
-{
-    cursor: &'cursor mut CursorType,
+pub trait CodecFactory<CursorType: Cursor, CodecType: Codec<CursorType>> {
+    fn from_cursor(&mut self, cursor: CursorType) -> CodecType;
 }
 
-macro_rules! define_codec_write{
+pub struct BasicCodec<CursorType: Cursor> {
+    cursor: CursorType,
+}
+
+macro_rules! define_codec_write {
     ($name:ident, $type:ty) => {
         fn $name(&mut self, value: $type) -> Result<(), CodecError> {
             self.cursor.write(&value.to_le_bytes())?;
             Ok(())
         }
-    }
+    };
 }
 
-macro_rules! define_codec_read{
+macro_rules! define_codec_read {
     ($name:ident, $type:ty, $type_name:ident) => {
         fn $name(&mut self) -> Result<$type, CodecError> {
             const SIZE: usize = core::mem::size_of::<$type>();
@@ -101,15 +110,35 @@ macro_rules! define_codec_read{
             self.cursor.read(&mut buffer)?;
             Ok($type_name::from_le_bytes(buffer))
         }
+    };
+}
+
+impl<CursorType: Cursor> BasicCodec<CursorType> {
+    pub fn new(cursor: CursorType) -> Self {
+        Self { cursor }
+    }
+}
+pub struct BasicCodecFactory<CursorType: Cursor> {
+    _marker: core::marker::PhantomData<CursorType>,
+}
+impl<CursorType: Cursor> BasicCodecFactory<CursorType> {
+    pub fn new() -> Self {
+        Self {
+            _marker: core::marker::PhantomData {},
+        }
+    }
+}
+impl<CursorType: Cursor> CodecFactory<CursorType, BasicCodec<CursorType>>
+    for BasicCodecFactory<CursorType>
+{
+    fn from_cursor(&mut self, cursor: CursorType) -> BasicCodec<CursorType> {
+        BasicCodec::new(cursor)
     }
 }
 
-impl<'cursor, CursorType: Cursor> Codec<CursorType> for BasicCodec<'cursor, CursorType>
-{
-    fn new(cursor: &'cursor mut CursorType) -> Self {
-        Self {
-            cursor,
-        }
+impl<CursorType: Cursor> Codec<CursorType> for BasicCodec<CursorType> {
+    fn detach(self) -> CursorType {
+        self.cursor
     }
 
     define_codec_write!(write_u8, u8);
@@ -142,28 +171,31 @@ impl<'cursor, CursorType: Cursor> Codec<CursorType> for BasicCodec<'cursor, Curs
     fn write_null_flag(&mut self, is_null: bool) -> Result<(), CodecError> {
         self.write_u8(if is_null { 1 } else { 0 })
     }
-    fn write_callback(&mut self, callback_ids: &[usize], callback_id: usize) -> Result<(), CodecError> {
+    fn write_callback(
+        &mut self,
+        callback_ids: &[usize],
+        callback_id: usize,
+    ) -> Result<(), CodecError> {
         if callback_ids.len() == 0 {
             if callback_ids[0] == callback_id {
                 Ok(())
-            }
-            else {
+            } else {
                 Err(CodecError::InvalidCallback)
             }
-        }
-        else {
+        } else {
             let index = callback_ids.iter().position(|id| *id == callback_id);
             match index {
-                Some(index) => {
-                    self.write_u8(index as u8)
-                },
-                None => Err(CodecError::InvalidCallback)
+                Some(index) => self.write_u8(index as u8),
+                None => Err(CodecError::InvalidCallback),
             }
         }
     }
 
     fn start_write_message(&mut self, message_header: &MessageHeader) -> Result<(), CodecError> {
-        let header = (1u32 << 24) | ((message_header.service & 0xff) << 16) | ((message_header.request & 0xff) << 8) | ((message_header.message_type as u32) << 0);
+        let header = (1u32 << 24)
+            | ((message_header.service & 0xff) << 16)
+            | ((message_header.request & 0xff) << 8)
+            | ((message_header.message_type as u32) << 0);
         self.write_u32(header)?;
         self.write_u32(message_header.sequence)?;
         Ok(())
@@ -180,18 +212,21 @@ impl<'cursor, CursorType: Cursor> Codec<CursorType> for BasicCodec<'cursor, Curs
     define_codec_read!(read_f32, f32, f32);
     define_codec_read!(read_f64, f64, f64);
     define_codec_read!(read_ptr, usize, usize);
-    
+
     fn read_str<'buffer>(&mut self, buffer: &'buffer mut [u8]) -> Result<&'buffer str, CodecError> {
         let raw_str = self.read_binary(buffer)?;
         let s = core::str::from_utf8(raw_str)?;
         Ok(s)
     }
-    fn read_binary<'buffer>(&mut self, buffer: &'buffer mut [u8]) -> Result<&'buffer [u8], CodecError> {
+    fn read_binary<'buffer>(
+        &mut self,
+        buffer: &'buffer mut [u8],
+    ) -> Result<&'buffer [u8], CodecError> {
         let length = self.read_u32()? as usize;
         self.cursor.read(&mut buffer[0..length])?;
         Ok(&buffer[0..length])
     }
-    
+
     fn start_read_list(&mut self) -> Result<usize, CodecError> {
         let length = self.read_u32()? as usize;
         Ok(length)
@@ -207,8 +242,7 @@ impl<'cursor, CursorType: Cursor> Codec<CursorType> for BasicCodec<'cursor, Curs
         let index = self.read_u8()? as usize;
         if index >= callback_ids.len() {
             Err(CodecError::InvalidCallback)
-        }
-        else {
+        } else {
             Ok(callback_ids[index])
         }
     }
@@ -224,7 +258,7 @@ impl<'cursor, CursorType: Cursor> Codec<CursorType> for BasicCodec<'cursor, Curs
             service: (header >> 16) & 0xff,
             request: (header >> 8) & 0xff,
             message_type,
-            sequence
+            sequence,
         };
         Ok(message_header)
     }
@@ -239,23 +273,22 @@ impl<'cursor, CursorType: Cursor> Codec<CursorType> for BasicCodec<'cursor, Curs
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn basic_codec_read_write() -> Result<(), CodecError> {
         let mut buffer = [0u8; 256];
-        let mut cursor = SliceCursor::new(&mut buffer);
         {
-            let mut codec = BasicCodec::new(&mut cursor);
+            let cursor = SliceCursor::new(&mut buffer);
+            let mut codec = BasicCodec::new(cursor);
             codec.write_i8(0)?;
             codec.write_i8(127)?;
             codec.write_i8(-128)?;
             codec.write_u8(0)?;
             codec.write_u8(1)?;
             codec.write_u8(255)?;
-            
+
             codec.write_u32(0xdeadbeef)?;
 
             codec.write_f32(0f32)?;
@@ -282,16 +315,16 @@ mod tests {
             };
             codec.start_write_message(&message_header)?;
         }
-        cursor.reset();
         {
-            let mut codec = BasicCodec::new(&mut cursor);
+            let cursor = SliceCursor::new(&mut buffer);
+            let mut codec = BasicCodec::new(cursor);
             assert_eq!(codec.read_i8()?, 0i8);
             assert_eq!(codec.read_i8()?, 127i8);
             assert_eq!(codec.read_i8()?, -128i8);
             assert_eq!(codec.read_u8()?, 0u8);
             assert_eq!(codec.read_u8()?, 1u8);
             assert_eq!(codec.read_u8()?, 255u8);
-            
+
             assert_eq!(codec.read_u32()?, 0xdeadbeef);
 
             assert_eq!(codec.read_f32()?, 0f32);
@@ -309,15 +342,20 @@ mod tests {
 
             let mut binary_buffer = [0u8; 256];
             assert_eq!(codec.read_str(&mut binary_buffer)?, "HogeFugaPiyo🍣");
-            assert_eq!(codec.read_binary(&mut binary_buffer)?, &[0xdeu8, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x00]);
+            assert_eq!(
+                codec.read_binary(&mut binary_buffer)?,
+                &[0xdeu8, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0x00]
+            );
 
             let message_header = codec.start_read_message()?;
-            assert_eq!(message_header.message_type, MessageType::NotificationMessage);
+            assert_eq!(
+                message_header.message_type,
+                MessageType::NotificationMessage
+            );
             assert_eq!(message_header.service, 0xfeu32);
             assert_eq!(message_header.request, 0xcau32);
             assert_eq!(message_header.sequence, 0xdeadbeefu32);
         }
         Ok(())
     }
-
 }

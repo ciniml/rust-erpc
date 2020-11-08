@@ -15,14 +15,19 @@ class HostHandler(object):
     def rpc_ble_deinit(self):
         print("rpc_ble_deinit")
 
+class GapHandler(object):
+    def __init__(self):
+        pass
+    def rpc_gap_set_param(self, param, value):
+        print("rpc_gap_set_param: {}, {}".format(param, value))
 
 def main():
-    handler = HostHandler()
-
     transport = erpc.transport.TCPTransport("localhost", 5555, True)
-    service = rpc_ble_api.server.rpc_ble_hostService(handler)
+    host_service = rpc_ble_api.server.rpc_ble_hostService(HostHandler())
+    gap_service = rpc_ble_api.server.rpc_gapService(GapHandler())
     server = erpc.simple_server.SimpleServer(transport, erpc.basic_codec.BasicCodec)
-    server.add_service(service)
+    server.add_service(host_service)
+    server.add_service(gap_service)
     print("Starting BLE Host Service.")
     sys.stdout.flush()
 

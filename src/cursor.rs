@@ -1,26 +1,22 @@
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CursorError {
     InsufficientBuffer,
     NotEnoughData,
 }
 
-pub trait Cursor
-{
+pub trait Cursor {
     fn read<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], CursorError>;
     fn write(&mut self, data: &[u8]) -> Result<(), CursorError>;
 }
 
-pub struct BufferCursor<Buffer: AsMut<[u8]>>
-{
+pub struct BufferCursor<Buffer: AsMut<[u8]>> {
     buffer: Buffer,
     position: usize,
 }
 
-impl<Buffer: AsMut<[u8]>> BufferCursor<Buffer>
-{
+impl<Buffer: AsMut<[u8]>> BufferCursor<Buffer> {
     pub fn new(buffer: Buffer) -> Self {
-        Self { 
+        Self {
             buffer,
             position: 0,
         }
@@ -31,49 +27,46 @@ impl<Buffer: AsMut<[u8]>> BufferCursor<Buffer>
     pub fn reset(&mut self) {
         self.position = 0;
     }
-    pub fn get_position(&self) -> usize { 
+    pub fn get_position(&self) -> usize {
         self.position
     }
 }
 
-impl<Buffer: AsMut<[u8]>> Cursor for BufferCursor<Buffer>
-{
+impl<Buffer: AsMut<[u8]>> Cursor for BufferCursor<Buffer> {
     fn read<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], CursorError> {
-        let mut cursor = SliceCursor::new_with_position(&mut self.buffer, self.position);
-        cursor.read(buffer)
+        let mut cursor = SliceCursor::new_with_position(self.buffer.as_mut(), self.position);
+        let result = cursor.read(buffer)?;
+        self.position = cursor.get_position();
+        Ok(result)
     }
     fn write(&mut self, data: &[u8]) -> Result<(), CursorError> {
-        let mut cursor = SliceCursor::new_with_position(&mut self.buffer, self.position);
-        cursor.write(data)
+        let mut cursor = SliceCursor::new_with_position(self.buffer.as_mut(), self.position);
+        cursor.write(data)?;
+        self.position = cursor.get_position();
+        Ok(())
     }
 }
 
-pub struct SliceCursor<'buffer>
-{
+pub struct SliceCursor<'buffer> {
     buffer: &'buffer mut [u8],
     position: usize,
 }
 
-impl<'buffer> SliceCursor<'buffer>
-{
+impl<'buffer> SliceCursor<'buffer> {
     pub fn new(buffer: &'buffer mut [u8]) -> Self {
         Self::new_with_position(buffer, 0)
     }
     pub fn new_with_position(buffer: &'buffer mut [u8], position: usize) -> Self {
-        Self {
-            buffer,
-            position,
-        }
+        Self { buffer, position }
     }
     pub fn reset(&mut self) {
         self.position = 0;
     }
-    pub fn get_position(&self) -> usize { 
+    pub fn get_position(&self) -> usize {
         self.position
     }
 }
-impl<'buffer> Cursor for SliceCursor<'buffer>
-{
+impl<'buffer> Cursor for SliceCursor<'buffer> {
     fn read<'a>(&mut self, buffer: &'a mut [u8]) -> Result<&'a [u8], CursorError> {
         let remaining = self.buffer.len() - self.position;
         let bytes_to_read = core::cmp::min(remaining, buffer.len());
@@ -86,12 +79,10 @@ impl<'buffer> Cursor for SliceCursor<'buffer>
         let remaining = self.buffer.len() - self.position;
         if remaining < bytes_to_write {
             Err(CursorError::InsufficientBuffer)
-        }
-        else {
+        } else {
             self.buffer[self.position..self.position + bytes_to_write].copy_from_slice(data);
             self.position += bytes_to_write;
             Ok(())
         }
     }
 }
-
