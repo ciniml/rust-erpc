@@ -24,7 +24,7 @@ fn checksum_crc16(data: &[u8]) -> u16 {
     crc
 }
 
-fn compute_table(mut index: u8, poly: u16) -> u16 {
+fn compute_table(index: u8, poly: u16) -> u16 {
     let mut crc = 0u16;
     let mut i = (index as u16) << 8;
     for _ in 0..8 {
@@ -113,7 +113,7 @@ impl<Underlying: UnderlyingTransport> FramedTransport<Underlying::Error>
         let mut header = [0u8; 4];
         self.underlying.read_exact(&mut header)?;
 
-        let mut cursor = SliceCursor::new(&mut header);
+        let cursor = SliceCursor::new(&mut header);
         let mut codec = BasicCodec::new(cursor);
         let length = codec.read_u16().unwrap() as usize;
         let checksum = codec.read_u16().unwrap();
