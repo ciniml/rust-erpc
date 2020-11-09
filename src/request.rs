@@ -79,10 +79,10 @@ where
 }
 
 pub struct Request {
-    service: u32,
-    request: u32,
-    sequence: u32,
-    is_oneway: bool,
+    pub service: u32,
+    pub request: u32,
+    pub sequence: u32,
+    pub is_oneway: bool,
 }
 
 impl Request {
@@ -155,10 +155,10 @@ impl Request {
 }
 
 pub struct Response {
-    service: u32,
-    request: u32,
-    sequence: u32,
-    is_notification: bool,
+    pub service: u32,
+    pub request: u32,
+    pub sequence: u32,
+    pub is_notification: bool,
 }
 
 impl Response {

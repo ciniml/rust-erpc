@@ -20,6 +20,7 @@ class GapHandler(object):
         pass
     def rpc_gap_set_param(self, param, value):
         print("rpc_gap_set_param: {}, {}".format(param, value))
+        return param - 1
 
 def main():
     transport = erpc.transport.TCPTransport("localhost", 5555, True)

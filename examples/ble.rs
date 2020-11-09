@@ -27,12 +27,16 @@ fn main() {
 
     'main: loop {
         print!("Sending request... ");
-        let request = Request::new(1, 1, 0, false);
+        let request = Request::new(2, 1, 0, false);
         let result = request.send_request(
             &mut transport,
             &mut frame_buffer,
             BasicCodecFactory::new(),
-            |_| Ok(()),
+            |codec| {
+                codec.write_u32(1234)?;
+                codec.write_binary(&[0x5a; 128])?;
+                Ok(())
+            },
         );
         if let Err(err) = result {
             println!("Error: {:?}", err);
@@ -47,21 +51,36 @@ fn main() {
                 &mut frame_buffer,
                 BasicCodecFactory::new(),
             );
-            if let Err(err) = result {
-                if let RequestResponseError::FramedTransportError(
-                    FramedTransportError::UnderlyingError(underlying_error),
-                ) = &err
-                {
-                    if underlying_error.kind() == std::io::ErrorKind::WouldBlock {
-                        continue;
+            match result {
+                Ok((response, mut codec)) => {
+                    println!(
+                        "Ok. response = {}, {}, {}, {}",
+                        response.service,
+                        response.request,
+                        response.sequence,
+                        response.is_notification
+                    );
+                    if let Ok(result) = codec.read_u32() {
+                        println!("\tresult = {}", result);
+                    } else {
+                        println!("\tno result...");
                     }
-                } else {
+                    break;
                 }
-                println!("Error: {:?}", err);
-                continue 'main;
+                Err(err) => {
+                    if let RequestResponseError::FramedTransportError(
+                        FramedTransportError::UnderlyingError(underlying_error),
+                    ) = &err
+                    {
+                        if underlying_error.kind() == std::io::ErrorKind::WouldBlock {
+                            continue;
+                        }
+                    } else {
+                    }
+                    println!("Error: {:?}", err);
+                    continue 'main;
+                }
             }
-            break;
         }
-        println!("Ok.");
     }
 }
