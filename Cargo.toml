@@ -12,17 +12,18 @@ num-derive = {version = "0.3.2", default-features = false}
 num-traits = {version = "0.2.12", default-features = false}
 heapless = {version = "0.5.6"}
 lazy_static = {version = "1.4.0"}
-serialport = {version = "3.3.0", optional = true}
 
 [features]
 default = []
 std = []
-serial = ["serialport"]
+
+[dev-dependencies]
+serialport = "3.3.0"
 
 [[example]]
 name = "ble"
-features = ["std"]
+required-features = ["std"]
 
 [[example]]
 name = "serial"
-features = ["std", "serial"]
+required-features = ["std"]
