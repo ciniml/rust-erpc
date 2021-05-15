@@ -14,7 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Install stable
       - uses: actions-rs/toolchain@v1
         with:
-            components: rustfmt
-      - run: rustfmt --edition 2018 --check ./src/lib.rs
+            profile: minimal
+            toolchain: stable
+            components: rustfmt, clippy
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
