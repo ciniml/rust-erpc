@@ -9,8 +9,8 @@ static CRC16_POLY: u16 = 0x1021;
 lazy_static! {
     static ref CRC16_TABLE: [u16; 256] = {
         let mut table = [0u16; 256];
-        for i in 0..256 {
-            table[i] = compute_table(i as u8, CRC16_POLY);
+        for (i, item) in table.iter_mut().enumerate() {
+            *item = compute_table(i as u8, CRC16_POLY);
         }
         table
     };
