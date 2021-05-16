@@ -121,6 +121,11 @@ impl<CursorType: Cursor> BasicCodec<CursorType> {
 pub struct BasicCodecFactory<CursorType: Cursor> {
     _marker: core::marker::PhantomData<CursorType>,
 }
+impl<CursorType: Cursor> Default for BasicCodecFactory<CursorType> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl<CursorType: Cursor> BasicCodecFactory<CursorType> {
     pub fn new() -> Self {
         Self {
@@ -176,7 +181,7 @@ impl<CursorType: Cursor> Codec<CursorType> for BasicCodec<CursorType> {
         callback_ids: &[usize],
         callback_id: usize,
     ) -> Result<(), CodecError> {
-        if callback_ids.len() == 0 {
+        if callback_ids.is_empty() {
             if callback_ids[0] == callback_id {
                 Ok(())
             } else {
@@ -195,7 +200,7 @@ impl<CursorType: Cursor> Codec<CursorType> for BasicCodec<CursorType> {
         let header = (1u32 << 24)
             | ((message_header.service & 0xff) << 16)
             | ((message_header.request & 0xff) << 8)
-            | ((message_header.message_type as u32) << 0);
+            | (message_header.message_type as u32);
         self.write_u32(header)?;
         self.write_u32(message_header.sequence)?;
         Ok(())
@@ -249,7 +254,7 @@ impl<CursorType: Cursor> Codec<CursorType> for BasicCodec<CursorType> {
     fn start_read_message(&mut self) -> Result<MessageHeader, CodecError> {
         let header = self.read_u32()?;
         let sequence = self.read_u32()?;
-        let message_type = if let Some(message_type) = MessageType::from_u32((header >> 0) & 0xff) {
+        let message_type = if let Some(message_type) = MessageType::from_u32(header & 0xff) {
             message_type
         } else {
             return Err(CodecError::InvalidMessageType);

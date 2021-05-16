@@ -21,8 +21,8 @@ serial = ["serialport"]
 
 [[example]]
 name = "ble"
-features = ["std"]
+required-features = ["std"]
 
 [[example]]
 name = "serial"
-features = ["std", "serial"]
+required-features = ["std", "serial"]

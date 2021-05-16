@@ -10,7 +10,8 @@ use rust_erpc::{
 
 fn main() {
     let mut port = open("/dev/ttyACM0").expect("Failed to open serial port.");
-    port.set_baud_rate(1843200).expect("Failed to set baud rate");
+    port.set_baud_rate(1843200)
+        .expect("Failed to set baud rate");
 
     let io_transport = IoTransport::new(port);
     let mut transport = BasicFramedTransport::new(io_transport);
