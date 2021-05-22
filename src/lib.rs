@@ -1,6 +1,4 @@
-#![no_std]
-#[cfg(feature = "std")]
-extern crate std;
+#![cfg_attr(not(test), no_std)]
 
 pub mod codec;
 pub mod cursor;
