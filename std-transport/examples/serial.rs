@@ -1,8 +1,10 @@
+/// An example to use `serialport` crate as a transport layer.
+
 use serialport::open;
 
-use rust_erpc::cursor::BufferCursor;
-use rust_erpc::framed_transport::{BasicFramedTransport, FramedTransportError, IoTransport};
-use rust_erpc::request::{MessageType, Request, Response};
+use std_transport::IoTransport;
+use rust_erpc::framed_transport::{BasicFramedTransport, FramedTransportError};
+use rust_erpc::request::{Request, Response};
 use rust_erpc::{
     codec::{BasicCodecFactory, Codec},
     request::RequestResponseError,

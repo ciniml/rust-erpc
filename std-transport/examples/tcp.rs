@@ -1,8 +1,8 @@
 use std::{net::TcpStream, time::Duration};
 
-use rust_erpc::cursor::BufferCursor;
-use rust_erpc::framed_transport::{BasicFramedTransport, FramedTransportError, IoTransport};
-use rust_erpc::request::{MessageType, Request, Response};
+use std_transport::IoTransport;
+use rust_erpc::framed_transport::{BasicFramedTransport, FramedTransportError};
+use rust_erpc::request::{Request, Response};
 use rust_erpc::{
     codec::{BasicCodecFactory, Codec},
     request::RequestResponseError,
@@ -12,7 +12,7 @@ fn main() {
     let remote = "127.0.0.1:5555"
         .parse()
         .expect("Failed to parse the remote address.");
-    let mut stream =
+    let stream =
         TcpStream::connect_timeout(&remote, Duration::from_secs(1)).expect("Could not connect.");
     stream
         .set_read_timeout(Some(Duration::from_secs(2)))
