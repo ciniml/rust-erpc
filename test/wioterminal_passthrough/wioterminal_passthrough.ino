@@ -37,7 +37,7 @@ void setup()
     digitalWrite(RTL8720D_CHIP_PU, LOW);
     delay(100);
     digitalWrite(RTL8720D_CHIP_PU, HIGH);
-    delay(100);
+    delay(200);
 }
 
 void loop()
