@@ -11,7 +11,7 @@ static Uart rtl_uart(&SERCOM_BLE_SERIAL_X, PIN_BLE_SERIAL_X_RX, PIN_BLE_SERIAL_X
 extern "C" {
     void SERCOM0_0_Handler()
     {
-        rtl_uart.IrqHandler();
+      rtl_uart.IrqHandler();
     }
     void SERCOM0_1_Handler()
     {
